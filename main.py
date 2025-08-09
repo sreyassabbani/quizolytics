@@ -1,4 +1,4 @@
-from flask import Flask, render_template
+from flask import Flask, render_template, request
 import json
 import re
 import nltk
@@ -83,6 +83,9 @@ def analyze():
             "Other Academic" if automaticForm.otherAcademic.data else '',
             "Trash" if automaticForm.trash.data else ''
         ]
+        
+        # Read alternate subcategories (comma-separated) from hidden field
+        alt_subs = request.form.get('alternateSubcategories', '')
 
         difficultiesStr = automaticForm.difficulty.data
         difficultiesSplit = difficultiesStr.split(',')
@@ -99,9 +102,14 @@ def analyze():
             except:
                 print(f'Was not able to parse difficulty {i}.')
 
+        # Allow modal to override categories/subcategories via hidden fields if present
+        modal_categories = request.form.get('categories', '')
+        modal_subcategories = request.form.get('subcategories', '')
+
         payload = {
-            "categories": ','.join(categories),
-            "subcategories": ','.join([i for i in subcategories if i]),
+            "categories": modal_categories if modal_categories else ','.join(categories),
+            "subcategories": modal_subcategories if modal_subcategories else ','.join([i for i in subcategories if i]),
+            "alternateSubcategories": alt_subs,
             "difficulties": ','.join([str(i) for i in list(set(difficulties))]),
             "maxReturnLength": 200,
             "queryString": automaticForm.query.data,
@@ -114,6 +122,7 @@ def analyze():
 
         resp = requests.get('https://www.qbreader.org/api/query',
                              params=payload)
+        print(payload)
         
         questions = [
             {info: i[info] for info in ('question', 'formatted_answer', 'answer', 'setName', 'category', 'subcategory', 'difficulty', '_id') if info in i} for i in resp.json()['tossups']['questionArray']
